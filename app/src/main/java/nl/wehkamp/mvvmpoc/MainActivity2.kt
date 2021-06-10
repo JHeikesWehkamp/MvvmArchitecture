@@ -5,6 +5,7 @@ import android.os.Bundle
 import android.util.Log
 import android.view.LayoutInflater
 import androidx.activity.viewModels
+import androidx.appcompat.app.AppCompatActivity
 import dagger.hilt.android.AndroidEntryPoint
 import nl.wehkamp.mvvmpoc.databinding.ActivityMainBinding
 import nl.wehkamp.mvvmpoc.feature.example.ExampleAction
@@ -14,40 +15,52 @@ import nl.wehkamp.mvvmpoc.model.Result
 import nl.wehkamp.mvvmpoc.model.data.MockData
 
 @AndroidEntryPoint
-class MainActivity : BaseActivity<ExampleState, ExampleEvent, ExampleAction>() {
+class MainActivity2 : AppCompatActivity() {
+    private val vmSubscriber =
+        object : ViewModelSubscriber<ExampleState, ExampleEvent, ExampleAction>(this) {
+            override val viewModel: ExampleViewModel by viewModels()
 
-    override val viewModel: ExampleViewModel by viewModels()
+            override fun onResult(result: Result<ExampleState>) = when (result) {
+                is Result.Success -> onState(result.state)
+                is Result.Loading -> startLoading()
+                is Result.Error -> showError(result.throwable)
+            }
+
+            override fun onEvent(event: ExampleEvent) = when (event) {
+                ExampleEvent.ShowDetail -> showDetailScreen()
+            }
+
+        }
 
     private lateinit var binding: ActivityMainBinding
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(LayoutInflater.from(this))
+
+        this.lifecycle.addObserver(vmSubscriber)
+
         setContentView(binding.root)
 
         with(binding) {
             changeTextLivedataButton.setOnClickListener {
-                viewModel.executeAction(ExampleAction.ChangeTextLiveData)
+                vmSubscriber.viewModel.executeAction(ExampleAction.ChangeTextLiveData)
             }
             changeTextFlowButton.setOnClickListener {
-                viewModel.executeAction(ExampleAction.ChangeText)
+                vmSubscriber.viewModel.executeAction(ExampleAction.ChangeText)
             }
             showDetailButton.setOnClickListener {
-                viewModel.executeAction(ExampleAction.ShowDetail)
+                vmSubscriber.viewModel.executeAction(ExampleAction.ShowDetail)
             }
         }
 
-        viewModel.executeAction(ExampleAction.Start)
+        vmSubscriber.viewModel.executeAction(ExampleAction.Start)
     }
 
-    override fun onResult(result: Result<ExampleState>) = when (result) {
-        is Result.Success -> onState(result.state)
-        is Result.Loading -> startLoading()
-        is Result.Error -> showError(result.throwable)
-    }
 
-    override fun onEvent(event: ExampleEvent) = when (event) {
-        ExampleEvent.ShowDetail -> showDetailScreen()
+    override fun onDestroy() {
+        super.onDestroy()
+        this.lifecycle.removeObserver(vmSubscriber)
     }
 
     private fun onState(state: ExampleState) {
